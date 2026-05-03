@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Manajemen Gudang</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    animation: {
+                        'slide-in': 'slideIn 0.3s ease-out',
+                        'bounce-in': 'bounceIn 0.5s ease-out',
+                    },
+                    keyframes: {
+                        slideIn: {
+                            '0%': { transform: 'translateY(-20px)', opacity: '0' },
+                            '100%': { transform: 'translateY(0)', opacity: '1' }
+                        },
+                        bounceIn: {
+                            '0%': { transform: 'scale(0.3)', opacity: '0' },
+                            '50%': { transform: 'scale(1.05)' },
+                            '70%': { transform: 'scale(0.9)' },
+                            '100%': { transform: 'scale(1)', opacity: '1' }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .stok-low { background-color: #fef3c7 !important; }
+        .stok-critical { background-color: #fecaca !important; }
+        .badge { 
+            @apply inline-block px-3 py-1 rounded-full text-xs font-semibold text-white;
+        }
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .gradient-header {
+            background: linear-gradient(135deg, #1e293b 0%, #3b82f6 100%);
+        }
+        .table-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 py-8 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-7xl mx-auto bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl overflow-hidden">
+        
+        <!-- Header -->
+        <header class="gradient-header text-white p-12 text-center">
+            <h1 class="text-5xl md:text-6xl font-bold mb-4 flex items-center justify-center gap-4">
+                <i class="fas fa-warehouse text-6xl"></i>
+                Sistem Manajemen Gudang
+            </h1>
+            <p class="text-xl opacity-90">Admin</p>
+        </header>
+
+        <!-- Controls -->
+        <div class="p-8 bg-gradient-to-r from-gray-50 to-gray-100">
+            <div class="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center">
+                <button onclick="openModal('add')" 
+                    class="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-semibold py-4 px-8 rounded-2xl shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 flex items-center justify-center gap-3 flex-1 lg:flex-none">
+                    <i class="fas fa-plus text-xl"></i>
+                    Tambah Barang Baru
+                </button>
+                <div class="flex gap-3 flex-1 lg:flex-none">
+                    <input type="text" id="searchInput" 
+                        placeholder="🔍 Cari barang, kode, atau kategori..." 
+                        onkeyup="searchItems()"
+                        class="flex-1 px-6 py-4 border-2 border-gray-200 rounded-2xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-300 text-lg shadow-md">
+                    <button onclick="exportData()" 
+                        class="bg-green-500 hover:bg-green-600 text-white font-semibold py-4 px-8 rounded-2xl shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 flex items-center gap-3">
+                        <i class="fas fa-download"></i>
+                        Export CSV
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Table -->
+        <div class="overflow-x-auto max-h-[600px]">
+            <table id="inventoryTable" class="w-full">
+                <thead>
+                    <tr class="table-header text-white text-left text-sm uppercase tracking-wider font-bold">
+                        <th class="px-6 py-5">No</th>
+                        <th class="px-6 py-5">Kode</th>
+                        <th class="px-6 py-5">Nama Barang</th>
+                        <th class="px-6 py-5">Kategori</th>
+                        <th class="px-6 py-5">Stok</th>
+                        <th class="px-6 py-5">Harga Beli</th>
+                        <th class="px-6 py-5">Harga Jual</th>
+                        <th class="px-6 py-5">Tgl Masuk</th>
+                        <th class="px-6 py-5">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody" class="divide-y divide-gray-200">
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div id="itemModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden animate-bounce-in">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto animate-slide-in">
+                <!-- Modal Header -->
+                <div class="gradient-header text-white p-8 rounded-t-3xl">
+                    <div class="flex items-center justify-between">
+                        <h2 id="modalTitle" class="text-3xl font-bold">Tambah Barang Baru</h2>
+                        <button onclick="closeModal()" class="text-3xl hover:text-red-300 transition-colors p-2 rounded-2xl hover:bg-white/20">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Form -->
+                <form id="itemForm" class="p-8 space-y-6">
+                    <input type="hidden" id="editId">
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                Kode Barang <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" id="kodeBarang" required 
+                                class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-300 text-lg shadow-sm">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                Nama Barang <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" id="namaBarang" required 
+                                class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-300 text-lg shadow-sm">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                Kategori <span class="text-red-500">*</span>
+                            </label>
+                            <select id="kategori" required class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-300 text-lg shadow-sm">
+                                <option value="">Pilih Kategori</option>
+                                <option value="Elektronik">📱 Elektronik</option>
+                                <option value="Pakaian">👕 Pakaian</option>
+                                <option value="Makanan">🍚 Makanan</option>
+                                <option value="Minuman">🥤 Minuman</option>
+                                <option value="Alat Tulis">📝 Alat Tulis</option>
+                                <option value="Lainnya">📦 Lainnya</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                Stok <span class="text-red-500">*</span>
+                            </label>
+                            <input type="number" id="stok" min="0" required 
+                                class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-300 text-lg shadow-sm">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                Harga Beli (Rp) <span class="text-red-500">*</span>
+                            </label>
+                            <input type="number" id="hargaBeli" min="0" step="1000" required 
+                                class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-300 text-lg shadow-sm">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                Harga Jual (Rp) <span class="text-red-500">*</span>
+                            </label>
+                            <input type="number" id="hargaJual" min="0" step="1000" required 
+                                class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-300 text-lg shadow-sm">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                            Tanggal Masuk <span class="text-red-500">*</span>
+                        </label>
+                        <input type="date" id="tanggalMasuk" required 
+                            class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-300 text-lg shadow-sm">
+                    </div>
+
+                    <div class="flex flex-col sm:flex-row gap-4 pt-4 border-t">
+                        <button type="submit" 
+                            class="flex-1 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-bold py-4 px-8 rounded-2xl shadow-xl hover:shadow-2xl transform hover:-translate-y-1 transition-all duration-300 flex items-center justify-center gap-3 text-lg">
+                            <i class="fas fa-save"></i>
+                            Simpan Data
+                        </button>
+                        <button type="button" onclick="closeModal()" 
+                            class="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-bold py-4 px-8 rounded-2xl shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 flex items-center justify-center gap-3 text-lg">
+                            <i class="fas fa-times"></i>
+                            Batal
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alert -->
+    <div id="alert" class="fixed top-6 right-6 z-[1000] hidden p-6 rounded-2xl shadow-2xl min-w-[320px] transform translate-x-96 transition-transform duration-300">
+        <div class="flex items-center justify-between">
+            <span id="alertMessage" class="font-semibold text-lg"></span>
+            <button onclick="hideAlert()" class="text-2xl hover:text-gray-300 transition-colors p-1 rounded-full hover:bg-white/20">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        class InventoryManager {
+            constructor() {
+                this.items = JSON.parse(localStorage.getItem('inventory')) || [];
+                this.currentEditId = null;
+                this.init();
+            }
+
+            init() {
+                this.renderTable();
+                this.setTodayDate();
+                this.attachEventListeners();
+            }
+
+            setTodayDate() {
+                const today = new Date().toISOString().split('T')[0];
+                document.getElementById('tanggalMasuk').value = today;
+                document.getElementById('kodeBarang').value = this.generateKodeBarang();
+            }
+
+            attachEventListeners() {
+                document.getElementById('itemForm').addEventListener('submit', (e) => this.handleFormSubmit(e));
+            }
+
+            generateId() {
+                return Date.now().toString(36) + Math.random().toString(36).substr(2);
+            }
+
+            generateKodeBarang() {
+                const count = this.items.length + 1;
+                return `BRG${String(count).padStart(4, '0')}`;
+            }
+
+            handleFormSubmit(e) {
+                e.preventDefault();
+                
+                const formData = {
+                    id: this.currentEditId || this.generateId(),
+                    kodeBarang: document.getElementById('kodeBarang').value,
+                    namaBarang: document.getElementById('namaBarang').value,
+                    kategori: document.getElementById('kategori').value,
+                    stok: parseInt(document.getElementById('stok').value),
+                    hargaBeli: parseInt(document.getElementById('hargaBeli').value),
+                    hargaJual: parseInt(document.getElementById('hargaJual').value),
+                    tanggalMasuk: document.getElementById('tanggalMasuk').value
+                };
+
+                if (this.currentEditId) {
+                    const index = this.items.findIndex(item => item.id === this.currentEditId);
+                    this.items[index] = formData;
+                    this.showAlert('✅ Data berhasil diupdate!', 'success');
+                } else {
+                    const duplicate = this.items.find(item => item.kodeBarang === formData.kodeBarang);
+                    if (duplicate) {
+                        this.showAlert('❌ Kode barang sudah ada!', 'error');
+                        return;
+                    }
+                    this.items.unshift(formData);
+                    this.showAlert('✅ Data berhasil ditambahkan!', 'success');
+                }
+
+                this.saveData();
+                this.renderTable();
+                this.closeModal();
+                this.resetForm();
+            }
+
+            editItem(id) {
+                const item = this.items.find(item => item.id === id);
+                if (item) {
+                    this.currentEditId = id;
+                    document.getElementById('editId').value = id;
+                    document.getElementById('kodeBarang').value = item.kodeBarang;
+                    document.getElementById('namaBarang').value = item.namaBarang;
+                    document.getElementById('kategori').value = item.kategori;
+                    document.getElementById('stok').value = item.stok;
+                    document.getElementById('hargaBeli').value = item.hargaBeli;
+                    document.getElementById('hargaJual').value = item.hargaJual;
+                    document.getElementById('tanggalMasuk').value = item.tanggalMasuk;
+                    document.getElementById('modalTitle').textContent = '✏️ Edit Barang';
+                    this.openModal();
+                }
+            }
+
+            deleteItem(id) {
+                if (confirm('🗑️ Yakin ingin menghapus barang ini?\n\nData tidak bisa dikembalikan!')) {
+                    this.items = this.items.filter(item => item.id !== id);
+                    this.saveData();
+                    this.renderTable();
+                    this.showAlert('🗑️ Data berhasil dihapus!', 'success');
+                }
+            }
+
+            renderTable(filteredItems = null) {
+                const tbody = document.getElementById('tableBody');
+                const itemsToShow = filteredItems || this.items;
+                
+                if (itemsToShow.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="9" class="px-6 py-20 text-center text-gray-500 text-xl">
+                                <i class="fas fa-inbox text-6xl mb-4 block opacity-50"></i>
+                                Belum ada data barang
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                tbody.innerHTML = itemsToShow.map((item, index) => {
+                    const stokClass = item.stok <= 5 ? 'stok-critical' : item.stok <= 20 ? 'stok-low' : '';
+                    const profit = item.hargaJual - item.hargaBeli;
+                    const profitMargin = profit > 0 ? `+Rp${profit.toLocaleString()}` : `Rp${profit.toLocaleString()}`;
+                    const kategoriColor = {
+                        'Elektronik': 'from-blue-500 to-blue-600',
+                        'Pakaian': 'from-pink-500 to-pink-600',
+                        'Makanan': 'from-orange-500 to-orange-600',
+                        'Minuman': 'from-cyan-500 to-cyan-600',
+                        'Alat Tulis': 'from-green-500 to-green-600',
+                        'Lainnya': 'from-gray-500 to-gray-600'
+                    }[item.kategori] || 'from-gray-500 to-gray-600';
+
+                    return `
+                        <tr class="hover:bg-gray-50 transition-colors duration-200 ${stokClass}">
+                            <td class="px-6 py-5 font-semibold text-gray-900">${index + 1}</td>
+                            <td class="px-6 py-5">
+                                <span class="font-mono font-bold text-lg bg-blue-100 text-blue-800 px-3 py-1 rounded-full">${item.kodeBarang}</span>
+                            </td>
+                            <td class="px-6 py-5 font-semibold text-gray-900">${item.namaBarang}</td>
+                            <td class="px-6 py-5">
+                                <span class="badge bg-gradient-to-r ${kategoriColor}">${item.kategori}</span>
+                            </td>
+                            <td class="px-6 py-5">
+                                <span class="text-2xl font-bold ${item.stok <= 5 ? 'text-red-600' : item.stok <= 20 ? 'text-amber-600' : 'text-green-600'}">
+                                    ${item.stok}
+                                </span>
+                            </td>
+                            <td class="px-6 py-5 text-gray-900 font-mono">Rp ${item.hargaBeli.toLocaleString()}</td>
+                            <td class="px-6 py-5 text-gray-900 font-mono">Rp ${item.hargaJual.toLocaleString()}</td>
+                            <td class="px-6 py-5 text-sm text-gray-500">${new Date(item.tanggalMasuk).toLocaleDateString('id-ID')}</td>
+                            <td class="px-6 py-5">
+                                <div class="flex gap-2">
+                                    <button onclick="inventory.editItem('${item.id}')" 
+                                        class="w-12 h-12 bg-blue-500 hover:bg-blue-600 text-white rounded-2xl flex items-center justify-center shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200"
+                                        title="Edit">
+                                        <i class="fas fa-edit text-sm"></i>
+                                    </button>
+                                    <button onclick="inventory.deleteItem('${item.id}')" 
+                                        class="w-12 h-12 bg-red-500 hover:bg-red-600 text-white rounded-2xl flex items-center justify-center shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200"
+                                        title="Hapus">
+                                        <i class="fas fa-trash text-sm"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+
+            searchItems() {
+                const query = document.getElementById('searchInput').value.toLowerCase();
+                const filtered = this.items.filter(item => 
+                    item.kodeBarang.toLowerCase().includes(query) ||
+                    item.namaBarang.toLowerCase().includes(query) ||
+                    item.kategori.toLowerCase().includes(query)
+                );
+                this.renderTable(filtered);
+            }
+
+            saveData() {
+                localStorage.setItem('inventory', JSON.stringify(this.items));
+            }
+
+            resetForm() {
+                document.getElementById('itemForm').reset();
+                this.currentEditId = null;
+                document.getElementById('editId').value = '';
+                document.getElementById('modalTitle').textContent = '➕ Tambah Barang Baru';
+                this.setTodayDate();
+            }
+
+            openModal() {
+                document.getElementById('itemModal').classList.remove('hidden');
+            }
+
+            closeModal() {
+                document.getElementById('itemModal').classList.add('hidden');
+                this.resetForm();
+            }
+
+            showAlert(message, type) {
+                const alert = document.getElementById('alert');
+                const alertMessage = document.getElementById('alertMessage');
+                alertMessage.textContent = message;
+                alert.className = `fixed top-6 right-6 z-[1000] p-6 rounded-2xl shadow-2xl min-w-[320px] transform translate-x-0 transition-transform duration-300 ${
+                    type === 'success' 
+                        ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white' 
+                        : 'bg-gradient-to-r from-red-500 to-red-600 text-white'
+                }`;
+                alert.classList.remove('hidden');
+                
+                setTimeout(() => {
+                    alert.classList.add('translate-x-96');
+                    setTimeout(() => {
+                        alert.classList.add('hidden');
+                        alert.classList.remove('translate-x-96');
+                    }, 300);
+                }, 4000);
+            }
+
+            exportData() {
+                if (this.items.length === 0) {
+                    this.showAlert('📭 Tidak ada data untuk diexport!', 'error');
+                    return;
+                }
+
+                const headers = ['ID', 'Kode Barang', 'Nama Barang', 'Kategori', 'Stok', 'Harga Beli', 'Harga Jual', 'Tanggal Masuk'];
+                const csvContent = [
+                    headers.join(','),
+                    ...this.items.map(item => [
+                        item.id,
+                        `"${item.kodeBarang}"`,
+                        `"${item.namaBarang}"`,
+                        `"${item.kategori}"`,
+                        item.stok,
+                        item.hargaBeli,
+                        item.hargaJual,
+                        item.tanggalMasuk
+                    ].join(','))
+                ].join('\n');
+
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                const url = URL.createObjectURL(blob);
+                link.setAttribute('href', url);
+                link.setAttribute('download', `inventory_${new Date().toISOString().split('T')[0]}.csv`);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                this.showAlert('📥 Data berhasil diexport ke CSV!', 'success');
+            }
+        }
+
+        // Initialize
+        const inventory = new InventoryManager();
+
+        // Global functions
+        function openModal(mode) {
+            inventory.openModal(mode);
+        }
+
+        function closeModal() {
+            inventory.closeModal();
+        }
+
+        function hideAlert() {
+            document.getElementById('alert').classList.add('translate-x-96');
+        }
+
+        // Close modal on outside click
+        window.onclick = function(event) {
+            const modal = document.getElementById('itemModal');
+            if (event.target === modal) {
+                inventory.closeModal();
+            }
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                inventory.closeModal();
+            }
+            if (e.ctrlKey && e.key === 'n') {
+                e.preventDefault();
+                openModal('add');
+            }
+        });
+    </script>
+</body>
+</html>
