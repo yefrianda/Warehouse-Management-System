@@ -1,2 +1,1 @@
-# Warehouse-Management-System
-a system created to manage goods data in a warehouse, this system is created with a simple and attractive appearance, can manage goods stock data in the warehouse using the CRUD method.
+<img width="1919" height="991" alt="Project1" src="https://github.com/user-attachments/assets/9bd6e4a5-1104-4b89-97df-75750bc098f3" />
